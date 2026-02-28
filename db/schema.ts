@@ -29,8 +29,27 @@ export const nullifiers = sqliteTable('nullifiers', {
   ),
 }));
 
+export const zkpassportRequests = sqliteTable('zkpassport_requests', {
+  requestId: text('request_id').primaryKey(),
+  electionId: text('election_id').notNull(),
+  url: text('url').notNull(),
+  status: text('status').notNull(),
+  error: text('error'),
+  verified: integer('verified', { mode: 'boolean' }),
+  uniqueIdentifier: text('unique_identifier'),
+  proof: text('proof'),
+  vkeyHash: text('vkey_hash'),
+  version: text('version'),
+  proofName: text('proof_name'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
 export type Election = typeof elections.$inferSelect;
 export type NewElection = typeof elections.$inferInsert;
 
 export type Nullifier = typeof nullifiers.$inferSelect;
 export type NewNullifier = typeof nullifiers.$inferInsert;
+
+export type ZkpassportRequest = typeof zkpassportRequests.$inferSelect;
+export type NewZkpassportRequest = typeof zkpassportRequests.$inferInsert;

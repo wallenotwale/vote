@@ -43,6 +43,22 @@ sqlite.exec(`
 
   CREATE UNIQUE INDEX IF NOT EXISTS nullifiers_election_nullifier_uq
     ON nullifiers (election_id, nullifier);
+
+  CREATE TABLE IF NOT EXISTS zkpassport_requests (
+    request_id         TEXT PRIMARY KEY,
+    election_id        TEXT NOT NULL,
+    url                TEXT NOT NULL,
+    status             TEXT NOT NULL,
+    error              TEXT,
+    verified           INTEGER,
+    unique_identifier  TEXT,
+    proof              TEXT,
+    vkey_hash          TEXT,
+    version            TEXT,
+    proof_name         TEXT,
+    created_at         TEXT NOT NULL,
+    updated_at         TEXT NOT NULL
+  );
 `);
 
 export const db = drizzle(sqlite, { schema });

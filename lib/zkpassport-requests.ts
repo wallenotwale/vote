@@ -1,4 +1,7 @@
+import { eq } from 'drizzle-orm';
 import { ZKPassport } from '@zkpassport/sdk';
+import { zkpassportRequests } from '@/db/schema';
+import { db } from '@/lib/db';
 
 type RequestStatus = 'created' | 'request_received' | 'generating_proof' | 'completed' | 'rejected' | 'error';
 
@@ -24,7 +27,6 @@ export type ZkpassportRequestState = {
 
 type GlobalStore = {
   zkp?: ZKPassport;
-  requests: Map<string, ZkpassportRequestState>;
 };
 
 const globalKey = '__zkpassport_request_store__';
@@ -36,7 +38,7 @@ function nowIso(): string {
 
 function getStore(): GlobalStore {
   if (!g[globalKey]) {
-    g[globalKey] = { requests: new Map<string, ZkpassportRequestState>() };
+    g[globalKey] = {};
   }
   return g[globalKey]!;
 }
@@ -52,6 +54,30 @@ function getClient(): ZKPassport {
     store.zkp = new ZKPassport(domain);
   }
   return store.zkp;
+}
+
+function toState(row: typeof zkpassportRequests.$inferSelect): ZkpassportRequestState {
+  const proof = row.proof && row.vkeyHash && row.version
+    ? {
+        proof: row.proof,
+        vkey_hash: row.vkeyHash,
+        version: row.version,
+        ...(row.proofName ? { name: row.proofName } : {}),
+      }
+    : undefined;
+
+  return {
+    requestId: row.requestId,
+    electionId: row.electionId,
+    url: row.url,
+    status: row.status as RequestStatus,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    ...(row.error ? { error: row.error } : {}),
+    ...(typeof row.verified === 'boolean' ? { verified: row.verified } : {}),
+    ...(row.uniqueIdentifier ? { uniqueIdentifier: row.uniqueIdentifier } : {}),
+    ...(proof ? { proof } : {}),
+  };
 }
 
 export async function createZkpassportRequest(electionId: string): Promise<ZkpassportRequestState> {
@@ -70,54 +96,52 @@ export async function createZkpassportRequest(electionId: string): Promise<Zkpas
   const { url, requestId, onRequestReceived, onGeneratingProof, onProofGenerated, onResult, onReject, onError } =
     queryBuilder.done();
 
-  const store = getStore();
-  const initial: ZkpassportRequestState = {
+  const initial = {
     requestId,
     electionId,
     url,
-    status: 'created',
+    status: 'created' as const,
     createdAt: nowIso(),
     updatedAt: nowIso(),
   };
-  store.requests.set(requestId, initial);
 
-  const patch = (delta: Partial<ZkpassportRequestState>) => {
-    const prev = store.requests.get(requestId);
-    if (!prev) return;
-    store.requests.set(requestId, {
-      ...prev,
-      ...delta,
-      updatedAt: nowIso(),
-    });
+  await db.insert(zkpassportRequests).values(initial);
+
+  const patch = async (delta: Partial<typeof zkpassportRequests.$inferInsert>) => {
+    await db
+      .update(zkpassportRequests)
+      .set({
+        ...delta,
+        updatedAt: nowIso(),
+      })
+      .where(eq(zkpassportRequests.requestId, requestId));
   };
 
   onRequestReceived(() => {
-    patch({ status: 'request_received' });
+    void patch({ status: 'request_received' });
   });
 
   onGeneratingProof(() => {
-    patch({ status: 'generating_proof' });
+    void patch({ status: 'generating_proof' });
   });
 
   onProofGenerated((p) => {
     if (!p.proof || !p.vkeyHash || !p.version) {
-      patch({ status: 'generating_proof' });
+      void patch({ status: 'generating_proof' });
       return;
     }
 
-    patch({
+    void patch({
       status: 'generating_proof',
-      proof: {
-        proof: p.proof,
-        vkey_hash: p.vkeyHash,
-        version: p.version,
-        name: p.name,
-      },
+      proof: p.proof,
+      vkeyHash: p.vkeyHash,
+      version: p.version,
+      proofName: p.name,
     });
   });
 
   onResult(({ uniqueIdentifier, verified }) => {
-    patch({
+    void patch({
       status: 'completed',
       verified,
       uniqueIdentifier,
@@ -125,16 +149,28 @@ export async function createZkpassportRequest(electionId: string): Promise<Zkpas
   });
 
   onReject(() => {
-    patch({ status: 'rejected' });
+    void patch({ status: 'rejected' });
   });
 
   onError((error) => {
-    patch({ status: 'error', error });
+    void patch({ status: 'error', error });
   });
 
-  return initial;
+  return {
+    requestId,
+    electionId,
+    url,
+    status: 'created',
+    createdAt: initial.createdAt,
+    updatedAt: initial.updatedAt,
+  };
 }
 
-export function getZkpassportRequest(requestId: string): ZkpassportRequestState | null {
-  return getStore().requests.get(requestId) ?? null;
+export async function getZkpassportRequest(requestId: string): Promise<ZkpassportRequestState | null> {
+  const row = await db.query.zkpassportRequests.findFirst({
+    where: eq(zkpassportRequests.requestId, requestId),
+  });
+
+  if (!row) return null;
+  return toState(row);
 }

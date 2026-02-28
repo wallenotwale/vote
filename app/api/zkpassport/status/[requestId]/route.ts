@@ -5,7 +5,7 @@ export async function GET(
   _request: Request,
   { params }: { params: { requestId: string } },
 ) {
-  const state = getZkpassportRequest(params.requestId);
+  const state = await getZkpassportRequest(params.requestId);
   if (!state) {
     return NextResponse.json({ error: 'Request not found' }, { status: 404 });
   }
