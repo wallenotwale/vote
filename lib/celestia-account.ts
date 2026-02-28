@@ -32,6 +32,15 @@ export async function getMochaAddressBalance(address: string): Promise<{
     cache: 'no-store',
   });
 
+  if (res.status === 204) {
+    return {
+      currency: 'utia',
+      spendable: '0',
+      delegated: '0',
+      unbonding: '0',
+    };
+  }
+
   if (!res.ok) {
     throw new Error(`Balance lookup failed: ${res.status} ${res.statusText}`);
   }
