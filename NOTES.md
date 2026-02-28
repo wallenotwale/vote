@@ -22,3 +22,6 @@
   - `npm test` ✅
   - `npm run build` ✅
   - `npm run lint` prompts for first-time ESLint setup (not yet initialized in repo).
+- Extended admin endpoint with request inspection and filters.
+  - `GET /api/zkpassport/admin/status` now returns recent request rows.
+  - Query params: `election_id`, `status`, `updated_from`, `updated_to`, `limit` (max 100), `offset`, and `cleanup=true`.

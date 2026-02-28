@@ -1,4 +1,4 @@
-import { and, count, eq, lt } from 'drizzle-orm';
+import { and, count, desc, eq, gte, lt, lte } from 'drizzle-orm';
 import { ZKPassport } from '@zkpassport/sdk';
 import { zkpassportRequests } from '@/db/schema';
 import { db } from '@/lib/db';
@@ -28,6 +28,15 @@ export type ZkpassportRequestState = {
 export type ZkpassportRequestStats = {
   total: number;
   byStatus: Record<string, number>;
+};
+
+export type ListZkpassportRequestsInput = {
+  electionId?: string;
+  status?: string;
+  updatedFrom?: string;
+  updatedTo?: string;
+  limit?: number;
+  offset?: number;
 };
 
 type GlobalStore = {
@@ -245,4 +254,32 @@ export async function getZkpassportRequestStats(): Promise<ZkpassportRequestStat
   const total = rows.reduce((acc, row) => acc + row.count, 0);
 
   return { total, byStatus };
+}
+
+export async function listZkpassportRequests(input: ListZkpassportRequestsInput): Promise<ZkpassportRequestState[]> {
+  const conditions = [];
+
+  if (input.electionId) {
+    conditions.push(eq(zkpassportRequests.electionId, input.electionId));
+  }
+  if (input.status) {
+    conditions.push(eq(zkpassportRequests.status, input.status));
+  }
+  if (input.updatedFrom) {
+    conditions.push(gte(zkpassportRequests.updatedAt, input.updatedFrom));
+  }
+  if (input.updatedTo) {
+    conditions.push(lte(zkpassportRequests.updatedAt, input.updatedTo));
+  }
+
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const rows = await db.query.zkpassportRequests.findMany({
+    where,
+    orderBy: [desc(zkpassportRequests.updatedAt)],
+    limit: input.limit,
+    offset: input.offset,
+  });
+
+  return rows.map(toState);
 }
