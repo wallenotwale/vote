@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Database (local dev only — don't commit)
+db/zkvote.db
+db/zkvote.db-shm
+db/zkvote.db-wal
+
+# Environment
+.env.local
+.env.*.local
+
+# Build
+dist/
+
+# OS
+.DS_Store

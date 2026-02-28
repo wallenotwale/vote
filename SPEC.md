@@ -294,47 +294,65 @@ npm run dev
 MOCK_ZKPASSPORT=true npm run dev
 ```
 
-## Build Phases
+## Project Review (Current State)
 
-### Phase 1: Foundation ✱ START HERE
-- [ ] Next.js project scaffold with TypeScript
-- [ ] Celestia RPC client library (`/lib/celestia.ts`)
-- [ ] Lumina sidecar setup script
-- [ ] Create election → post config blob → read it back
-- [ ] SQLite schema (elections, nullifiers)
-- [ ] Basic UI: create election, view election
+### What is already implemented
 
-### Phase 2: Voting Core
-- [ ] ElGamal encryption (`/lib/crypto.ts`)
-- [ ] Vote submission API (encrypt client-side, verify + post blob server-side)
-- [ ] Nullifier uniqueness check
-- [ ] Vote confirmation with Celestia height
-- [ ] Voting UI flow (select candidate → encrypt → submit)
+**Core app + data path (working):**
+- [x] Next.js App Router scaffold with TypeScript
+- [x] SQLite + Drizzle schema (`elections`, `nullifiers`)
+- [x] Celestia client (`/lib/celestia.ts`) with namespace derivation + blob submit/get
+- [x] Create election API (`POST /api/election`) including keypair generation + config blob post
+- [x] Election list/detail APIs (`GET /api/election`, `GET /api/election/:id`)
+- [x] Vote API (`POST /api/vote`) with voting-window guard + nullifier uniqueness
+- [x] Home, election detail, and vote UI pages
+- [x] Production build passes (`next build`)
 
-### Phase 3: ZKPassport
-- [ ] ZKPassport SDK integration in frontend
-- [ ] Passport scan → ZK proof flow
-- [ ] Proof verification on backend
-- [ ] Nullifier derived from ZKPassport scoped unique ID
-- [ ] Mock mode for development/demo without physical passport
+### Gaps / mismatches to original spec
 
-### Phase 4: Tally + Results
-- [ ] Admin tally trigger (reveal private key, decrypt all votes)
-- [ ] Post tally blob to Celestia
-- [ ] Results page with vote counts
-- [ ] Anyone can independently verify (read blobs, decrypt with revealed key, recount)
+- [ ] **Crypto mismatch:** spec says ElGamal Curve25519, current implementation uses RSA-OAEP in `lib/crypto.ts`
+- [ ] **ZKPassport integration not implemented:** optional proof fields are accepted but not verified
+- [ ] **No tally/results routes yet:** `/api/tally/:id` and `/api/results/:id` missing
+- [ ] **No verification dashboard yet:** `/election/[id]/verify` not implemented
+- [ ] **No receipt object in vote response** (for easier independent inclusion checks)
+- [ ] **No explicit election state machine** (upcoming/open/closed/tallied persisted server-side)
 
-### Phase 5: Lumina DA Verification
-- [ ] Lumina WASM integration in browser
-- [ ] DA sampling visualization on election page
-- [ ] "Verify all votes available" indicator
-- [ ] "Find my nullifier" search
+## Updated Build Plan
 
-### Phase 6: Polish
-- [ ] Mobile-friendly UI (ZKPassport is phone-first)
-- [ ] Error handling, loading states
-- [ ] Election lifecycle management (auto-close, etc.)
-- [ ] README and demo walkthrough
+### Phase 1 — Harden the foundation (now)
+- [ ] Add server-side input contracts (candidate limits, nullifier length/format, payload size)
+- [ ] Add shared blob schema validator (`type`, `version`, required fields)
+- [ ] Add deterministic vote receipt shape: `{election_id, nullifier, celestia_height, blob_commitment, timestamp}`
+- [ ] Add basic test coverage for API happy path + key edge cases
+
+### Phase 2 — Identity and anti-double-vote
+- [ ] Integrate ZKPassport SDK on vote flow page
+- [ ] Implement backend proof verification module (`lib/zkpassport.ts`)
+- [ ] Derive nullifier from scoped ZKPassport identifier (do not trust client-provided nullifier)
+- [ ] Support `MOCK_ZKPASSPORT=true` mode with explicit mock proof format
+
+### Phase 3 — Tally and public results
+- [ ] Implement `POST /api/tally/:id` (admin-auth protected)
+- [ ] Implement `GET /api/results/:id`
+- [ ] Persist tally metadata (height, commitment, tallied_at)
+- [ ] Add results UI on election detail page
+
+### Phase 4 — DA verification UX
+- [ ] Add `/election/[id]/verify` page
+- [ ] Scan namespace blobs and show inclusion counts
+- [ ] Add nullifier lookup UI for voter self-check
+- [ ] Add links to raw blob data + heights for independent verification
+
+### Phase 5 — Crypto and security alignment
+- [ ] Replace RSA-OAEP with planned ElGamal/Curve25519 path (or update spec if RSA remains intentional)
+- [ ] Protect election private key at rest (at minimum env-wrapped encryption for POC)
+- [ ] Add admin key rotation / safer admin auth than static header
+
+### Phase 6 — Product polish
+- [ ] Mobile-first voting UX refinements
+- [ ] Better error/loading/retry states for Celestia/Lumina outages
+- [ ] README with local runbook + end-to-end demo script
+- [ ] Optional: migrate from ad-hoc bootstrap SQL to explicit migrations
 
 ## File Structure
 
