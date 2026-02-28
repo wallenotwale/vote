@@ -43,3 +43,14 @@
 - Switched local runtime `.env.local` to iTRocket Mocha DA endpoint for testing (`http://celestia-testnet-da.itrocket.net:26658`).
 - Fixed `blob.Submit` JSON-RPC params in `lib/celestia.ts` to use txConfig object (`{ gas_price: -1 }`) for compatibility with hosted DA RPCs.
 - Verified election creation succeeds against iTRocket endpoint.
+- Added Celestia client-account helper library (`lib/celestia-account.ts`):
+  - Generate 24-word Celestia mnemonic + address (bech32 prefix `celestia`).
+  - Derive address from mnemonic.
+  - Query Mocha balance via Celenium API.
+  - Generate faucet URL.
+- Added wallet API endpoints (admin-key protected):
+  - `POST /api/celestia/wallet/generate` → returns new mnemonic/address (not persisted).
+  - `GET /api/celestia/wallet/balance/[address]` → returns funding status + balances.
+- Added CLI utility:
+  - `npm run wallet:generate`.
+- Dependency added: `@cosmjs/proto-signing`.

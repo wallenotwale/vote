@@ -9,9 +9,11 @@
     "lint": "next lint",
     "test": "tsx --test tests/**/*.test.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "wallet:generate": "tsx scripts/generate-celestia-wallet.ts"
   },
   "dependencies": {
+    "@cosmjs/proto-signing": "^0.38.1",
     "@zkpassport/sdk": "^0.12.5",
     "better-sqlite3": "^11.3.0",
     "drizzle-orm": "^0.33.0",
