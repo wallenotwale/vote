@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, count, eq, lt } from 'drizzle-orm';
 import { ZKPassport } from '@zkpassport/sdk';
 import { zkpassportRequests } from '@/db/schema';
 import { db } from '@/lib/db';
@@ -25,12 +25,21 @@ export type ZkpassportRequestState = {
   proof?: ProofPayload;
 };
 
+export type ZkpassportRequestStats = {
+  total: number;
+  byStatus: Record<string, number>;
+};
+
 type GlobalStore = {
   zkp?: ZKPassport;
+  lastCleanupAt?: number;
 };
 
 const globalKey = '__zkpassport_request_store__';
 const g = globalThis as typeof globalThis & { [globalKey]?: GlobalStore };
+
+const DEFAULT_TTL_HOURS = 24;
+const CLEANUP_MIN_INTERVAL_MS = 10 * 60 * 1000;
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -80,7 +89,51 @@ function toState(row: typeof zkpassportRequests.$inferSelect): ZkpassportRequest
   };
 }
 
+function getTtlHours(): number {
+  const raw = Number(process.env.ZKPASSPORT_REQUEST_TTL_HOURS ?? DEFAULT_TTL_HOURS);
+  if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_TTL_HOURS;
+  return raw;
+}
+
+export function getZkpassportRequestTtlHours(): number {
+  return getTtlHours();
+}
+
+export async function cleanupExpiredZkpassportRequests(ttlHours = getTtlHours()): Promise<number> {
+  const cutoff = new Date(Date.now() - ttlHours * 60 * 60 * 1000).toISOString();
+
+  const deleted = await db
+    .delete(zkpassportRequests)
+    .where(
+      and(
+        lt(zkpassportRequests.updatedAt, cutoff),
+        eq(zkpassportRequests.status, 'completed'),
+      ),
+    )
+    .returning({ requestId: zkpassportRequests.requestId });
+
+  return deleted.length;
+}
+
+async function maybeCleanupExpiredRequests(): Promise<void> {
+  const store = getStore();
+  const now = Date.now();
+
+  if (store.lastCleanupAt && now - store.lastCleanupAt < CLEANUP_MIN_INTERVAL_MS) {
+    return;
+  }
+
+  store.lastCleanupAt = now;
+  try {
+    await cleanupExpiredZkpassportRequests();
+  } catch {
+    // Best-effort cleanup should never break request flow.
+  }
+}
+
 export async function createZkpassportRequest(electionId: string): Promise<ZkpassportRequestState> {
+  await maybeCleanupExpiredRequests();
+
   const zkPassport = getClient();
 
   const queryBuilder = await zkPassport.request({
@@ -173,4 +226,23 @@ export async function getZkpassportRequest(requestId: string): Promise<Zkpasspor
 
   if (!row) return null;
   return toState(row);
+}
+
+export async function getZkpassportRequestStats(): Promise<ZkpassportRequestStats> {
+  const rows = await db
+    .select({
+      status: zkpassportRequests.status,
+      count: count(),
+    })
+    .from(zkpassportRequests)
+    .groupBy(zkpassportRequests.status);
+
+  const byStatus = rows.reduce<Record<string, number>>((acc, row) => {
+    acc[row.status] = row.count;
+    return acc;
+  }, {});
+
+  const total = rows.reduce((acc, row) => acc + row.count, 0);
+
+  return { total, byStatus };
 }

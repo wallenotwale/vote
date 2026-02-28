@@ -1,0 +1,24 @@
+## 2026-02-28 Progress
+- Moved repo to `~/code/zk-vote-celestia`.
+- Added ZKPassport request status polling + proof auto-fill flow on vote page.
+- Added `GET /api/zkpassport/status/[requestId]`.
+- Persisted ZKPassport request/proof lifecycle to SQLite (`zkpassport_requests` table).
+- Request status now survives server restarts.
+- Latest commits:
+  - `3148816` Add ZKPassport request status polling and proof auto-fill flow
+  - `f996901` Persist ZKPassport request/proof status in SQLite
+- Suggested next: TTL cleanup + small admin/debug status endpoint.
+
+## 2026-02-28 Resume Work
+- Added TTL cleanup for persisted ZKPassport requests in `lib/zkpassport-requests.ts`.
+  - Cleanup target: `completed` requests older than `ZKPASSPORT_REQUEST_TTL_HOURS` (default 24h).
+  - Best-effort auto-cleanup runs on request creation (throttled to once per 10 minutes per process).
+- Added admin/debug endpoint: `GET /api/zkpassport/admin/status`.
+  - Requires `x-admin-api-key` header matching `ADMIN_API_KEY`.
+  - Returns request stats by status and TTL config.
+  - Optional `?cleanup=true` triggers immediate cleanup and reports deleted rows.
+- Added `.env.local.example` entry: `ZKPASSPORT_REQUEST_TTL_HOURS=24`.
+- Validation:
+  - `npm test` ✅
+  - `npm run build` ✅
+  - `npm run lint` prompts for first-time ESLint setup (not yet initialized in repo).
