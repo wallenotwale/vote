@@ -226,8 +226,9 @@ export async function submitBlob(
     commitment: commitment.toString('base64'),
   };
 
-  // blob.Submit(blobs []Blob, gasPrice float64) → uint64 (height)
-  const height = await rpcCall<number>('blob.Submit', [[blob], -1.0]);
+  // blob.Submit(blobs []Blob, txConfig object) → uint64 (height)
+  // Newer DA endpoints expect an object (e.g. { gas_price }) instead of a float.
+  const height = await rpcCall<number>('blob.Submit', [[blob], { gas_price: -1 }]);
 
   return { height, commitment };
 }
