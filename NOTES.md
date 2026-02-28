@@ -40,3 +40,6 @@
 - Validation:
   - `npm test` ✅
   - `npm run build` ✅
+- Switched local runtime `.env.local` to iTRocket Mocha DA endpoint for testing (`http://celestia-testnet-da.itrocket.net:26658`).
+- Fixed `blob.Submit` JSON-RPC params in `lib/celestia.ts` to use txConfig object (`{ gas_price: -1 }`) for compatibility with hosted DA RPCs.
+- Verified election creation succeeds against iTRocket endpoint.
