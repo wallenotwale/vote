@@ -25,3 +25,12 @@
 - Extended admin endpoint with request inspection and filters.
   - `GET /api/zkpassport/admin/status` now returns recent request rows.
   - Query params: `election_id`, `status`, `updated_from`, `updated_to`, `limit` (max 100), `offset`, and `cleanup=true`.
+- Added admin UI page at `/admin/zkpassport`:
+  - API key input (`x-admin-api-key`) and filter controls.
+  - Overview panel (stats, TTL, cleanup deleted count).
+  - Request table showing request_id, election_id, status, verified, updated_at, error.
+  - Action buttons: load status, run cleanup + refresh.
+- Added quick link to ZKPassport Admin from homepage.
+- Validation:
+  - `npm test` ✅
+  - `npm run build` ✅
