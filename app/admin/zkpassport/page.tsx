@@ -23,11 +23,26 @@ type AdminStatusResponse = {
     createdAt: string;
     verified?: boolean;
     error?: string;
+    uniqueIdentifier?: string;
+    url?: string;
+    proof?: {
+      proof: string;
+      vkey_hash: string;
+      version: string;
+      name?: string;
+    };
   }>;
   error?: string;
 };
 
 const STATUS_OPTIONS = ['', 'created', 'request_received', 'generating_proof', 'completed', 'rejected', 'error'];
+
+function csvEscape(value: string): string {
+  if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+    return `"${value.replaceAll('"', '""')}"`;
+  }
+  return value;
+}
 
 export default function ZkpassportAdminPage() {
   const [apiKey, setApiKey] = useState('');
@@ -41,6 +56,7 @@ export default function ZkpassportAdminPage() {
   const [cleanupLoading, setCleanupLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<AdminStatusResponse | null>(null);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
 
   const queryString = useMemo(() => {
     const p = new URLSearchParams();
@@ -52,6 +68,11 @@ export default function ZkpassportAdminPage() {
     p.set('offset', offset || '0');
     return p.toString();
   }, [electionId, status, updatedFrom, updatedTo, limit, offset]);
+
+  const selectedRequest = useMemo(
+    () => data?.requests.find((r) => r.requestId === selectedRequestId) ?? null,
+    [data, selectedRequestId],
+  );
 
   async function fetchStatus(runCleanup = false) {
     if (!apiKey.trim()) {
@@ -82,6 +103,9 @@ export default function ZkpassportAdminPage() {
       }
 
       setData(json);
+      if (!json.requests.find((r) => r.requestId === selectedRequestId)) {
+        setSelectedRequestId(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load admin status');
     } finally {
@@ -93,6 +117,37 @@ export default function ZkpassportAdminPage() {
   async function onSubmit(ev: FormEvent) {
     ev.preventDefault();
     await fetchStatus(false);
+  }
+
+  function exportCsv() {
+    if (!data?.requests.length) return;
+
+    const headers = ['request_id', 'election_id', 'status', 'verified', 'created_at', 'updated_at', 'error'];
+    const lines = [headers.join(',')];
+
+    for (const row of data.requests) {
+      lines.push(
+        [
+          row.requestId,
+          row.electionId,
+          row.status,
+          typeof row.verified === 'boolean' ? String(row.verified) : '',
+          row.createdAt,
+          row.updatedAt,
+          row.error ?? '',
+        ]
+          .map((v) => csvEscape(v))
+          .join(','),
+      );
+    }
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `zkpassport-requests-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   const card = 'border border-gray-800 rounded-lg p-4 bg-gray-900';
@@ -173,6 +228,15 @@ export default function ZkpassportAdminPage() {
           >
             {cleanupLoading ? 'Running cleanup...' : 'Run Cleanup + Refresh'}
           </button>
+
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={!data?.requests.length}
+            className="bg-gray-700 hover:bg-gray-600 disabled:bg-gray-700/60 text-white text-sm font-medium px-4 py-2 rounded"
+          >
+            Export CSV
+          </button>
         </div>
       </form>
 
@@ -208,6 +272,7 @@ export default function ZkpassportAdminPage() {
                     <th className="py-2 pr-3">Verified</th>
                     <th className="py-2 pr-3">Updated</th>
                     <th className="py-2 pr-3">Error</th>
+                    <th className="py-2 pr-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -219,12 +284,39 @@ export default function ZkpassportAdminPage() {
                       <td className="py-2 pr-3">{typeof r.verified === 'boolean' ? String(r.verified) : '-'}</td>
                       <td className="py-2 pr-3 whitespace-nowrap">{new Date(r.updatedAt).toLocaleString()}</td>
                       <td className="py-2 pr-3 text-red-300 break-all">{r.error || '-'}</td>
+                      <td className="py-2 pr-3">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRequestId(r.requestId)}
+                          className="text-xs bg-gray-800 border border-gray-700 hover:border-gray-600 px-2 py-1 rounded"
+                        >
+                          View JSON
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </section>
+
+          {selectedRequest && (
+            <section className={card}>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold text-gray-200">Request JSON</h2>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRequestId(null)}
+                  className="text-xs bg-gray-800 border border-gray-700 hover:border-gray-600 px-2 py-1 rounded text-gray-200"
+                >
+                  Close
+                </button>
+              </div>
+              <pre className="text-xs text-gray-200 overflow-auto bg-gray-950 border border-gray-800 rounded p-3">
+                {JSON.stringify(selectedRequest, null, 2)}
+              </pre>
+            </section>
+          )}
         </>
       )}
     </div>
