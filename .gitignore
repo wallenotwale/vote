@@ -17,5 +17,10 @@ db/zkvote.db-wal
 # Build
 dist/
 
+# Local scratch / generated wallet artifacts
+tmp/
+**/keyring-test/
+*.mnemonic
+
 # OS
 .DS_Store
