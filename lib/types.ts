@@ -12,6 +12,8 @@ export interface ElectionConfigBlob {
   voting_end: string;
   encryption_pubkey?: string;
   admin_address?: string;
+  creator_pubkey?: string; // PEM public key for election creator signature
+  creator_sig?: string; // base64 signature over canonical election creation payload
 }
 
 export interface VoteBlob {
@@ -47,6 +49,8 @@ export interface CreateElectionRequest {
   candidates: string[];
   voting_start: string; // ISO 8601
   voting_end: string;
+  creator_pubkey?: string; // optional, for permissionless signed election creation
+  creator_sig?: string; // base64 signature over canonical election payload
 }
 
 export interface CreateElectionResponse {
@@ -55,6 +59,8 @@ export interface CreateElectionResponse {
   celestia_height: number;
   commitment: string; // base64
   encryption_pubkey: string; // base64 (SPKI DER)
+  creator_pubkey?: string;
+  creator_sig?: string;
 }
 
 export interface ElectionResponse {

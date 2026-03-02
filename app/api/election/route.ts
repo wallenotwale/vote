@@ -1,3 +1,4 @@
+import { createVerify } from 'crypto';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { elections } from '@/db/schema';
@@ -5,6 +6,38 @@ import { electionNamespace, namespaceToHex, submitBlob } from '@/lib/celestia';
 import { generateElectionKeypair } from '@/lib/crypto';
 import { parseCreateElectionRequest, validateElectionConfigBlob } from '@/lib/validation';
 import type { CreateElectionResponse, ElectionConfigBlob } from '@/lib/types';
+
+function canonicalElectionCreatePayload(input: {
+  title: string;
+  description: string;
+  candidates: string[];
+  voting_start: string;
+  voting_end: string;
+}): string {
+  return JSON.stringify({
+    title: input.title,
+    description: input.description,
+    candidates: input.candidates,
+    voting_start: input.voting_start,
+    voting_end: input.voting_end,
+  });
+}
+
+function verifyCreatorSignature(
+  creatorPubkey: string,
+  creatorSig: string,
+  payload: string,
+): boolean {
+  try {
+    const verify = createVerify('SHA256');
+    verify.update(payload);
+    verify.end();
+    return verify.verify(creatorPubkey, Buffer.from(creatorSig, 'base64'));
+  } catch {
+    return false;
+  }
+}
+
 
 export async function POST(request: Request) {
   let rawBody: unknown;
@@ -19,8 +52,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const { title, description, candidates, voting_start, voting_end } = parsed.data;
+  const { title, description, candidates, voting_start, voting_end, creator_pubkey, creator_sig } = parsed.data;
   const normalizedDescription = description ?? '';
+
+
+  if (creator_pubkey && creator_sig) {
+    const payload = canonicalElectionCreatePayload({
+      title,
+      description: normalizedDescription,
+      candidates,
+      voting_start,
+      voting_end,
+    });
+
+    const validSig = verifyCreatorSignature(creator_pubkey, creator_sig, payload);
+    if (!validSig) {
+      return NextResponse.json(
+        { error: 'Invalid creator signature for election payload' },
+        { status: 400 },
+      );
+    }
+  }
 
   const electionId = crypto.randomUUID();
   const namespace = electionNamespace(electionId);
@@ -51,6 +103,8 @@ export async function POST(request: Request) {
     voting_start,
     voting_end,
     encryption_pubkey: publicKey,
+    ...(creator_pubkey ? { creator_pubkey } : {}),
+    ...(creator_sig ? { creator_sig } : {}),
   };
 
   const validatedBlob = validateElectionConfigBlob(configBlob, electionId);
@@ -96,6 +150,8 @@ export async function POST(request: Request) {
     celestia_height: celestiaHeight,
     commitment: commitment.toString('base64'),
     encryption_pubkey: publicKey,
+    ...(creator_pubkey ? { creator_pubkey } : {}),
+    ...(creator_sig ? { creator_sig } : {}),
   };
 
   return NextResponse.json(response, { status: 201 });
