@@ -19,7 +19,7 @@ Passport NFC scan ──► ZKPassport proof (no PII disclosed)
         Anyone can verify via DA sampling / Celenium
 ```
 
-1. **Create an election** — generates an encryption keypair and posts config to a unique Celestia namespace.
+1. **Create an election** — generates an encryption keypair and posts config to a unique Celestia namespace. Optional `creator_pubkey` + `creator_sig` let anyone verify who authored the election config.
 2. **Vote** — scan your passport, pick a candidate, vote is encrypted client-side and posted as a Celestia blob with your ZK proof + scoped nullifier (prevents double-voting without revealing identity).
 3. **Tally** — admin reveals the decryption key; anyone can verify the count against on-chain blobs.
 4. **Verify** — all vote blobs are publicly available on Celestia; light nodes can independently confirm data availability.
@@ -134,6 +134,16 @@ Three layers of unlinkability:
 
 ## API Overview
 
+### Signed election creation (optional)
+
+`POST /api/election` also accepts:
+- `creator_pubkey` (PEM public key)
+- `creator_sig` (base64 signature)
+
+The signature is verified server-side against the canonical payload:
+`{ title, description, candidates, voting_start, voting_end }`.
+Invalid signatures are rejected with `400`.
+
 | Method | Endpoint | Description |
 |---|---|---|
 | `POST` | `/api/election` | Create election |
@@ -142,10 +152,11 @@ Three layers of unlinkability:
 | `GET` | `/api/verify/[id]` | Verify vote blobs on-chain |
 | `GET` | `/api/results/[id]` | Get election results |
 | `POST` | `/api/tally/[id]` | Trigger tally (admin) |
-| `POST` | `/api/zkpassport/request/[id]` | Create ZKPassport request |
+| `GET` | `/api/zkpassport/request/[id]` | Create ZKPassport request URL/state |
 | `GET` | `/api/zkpassport/status/[requestId]` | Poll proof status |
 | `POST` | `/api/celestia/wallet/generate` | Generate Celestia wallet |
 | `GET` | `/api/celestia/wallet/balance/[address]` | Check wallet balance |
+
 
 ## Current Status
 
@@ -153,6 +164,7 @@ This is a **proof of concept** on Celestia's mocha testnet. See [SPEC.md](./SPEC
 
 ### Working
 - Election creation with Celestia blob posting
+- Optional creator-signed election config verification (`creator_pubkey` + `creator_sig`)
 - Vote submission with nullifier uniqueness enforcement
 - ZKPassport request lifecycle (create → poll → proof auto-fill)
 - SQLite-persisted request/proof state
