@@ -11,6 +11,7 @@ export const elections = sqliteTable('elections', {
   celestiaHeight: integer('celestia_height').notNull(),
   encryptionPubkey: text('encryption_pubkey'),  // base64 — added in Phase 2
   encryptionPrivkey: text('encryption_privkey'), // base64 — added in Phase 2 (keep encrypted)
+  creatorNullifier: text('creator_nullifier').notNull(), // ZKPassport-derived nullifier of creator
   createdAt: text('created_at').notNull(),
 });
 

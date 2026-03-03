@@ -11,13 +11,13 @@ export default function CreateElectionForm() {
   const [candidatesRaw, setCandidatesRaw] = useState('Alice\nBob\nCharlie');
   const [votingStart, setVotingStart] = useState('');
   const [votingEnd, setVotingEnd] = useState('');
+  const [mockUserId, setMockUserId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
 
     const candidates = candidatesRaw
       .split('\n')
@@ -26,9 +26,17 @@ export default function CreateElectionForm() {
 
     if (candidates.length < 2) {
       setError('Enter at least 2 candidates (one per line)');
-      setLoading(false);
       return;
     }
+
+    // For mock mode, require a mock user ID
+    // In production, this would be replaced by actual ZKPassport verification
+    if (!mockUserId.trim()) {
+      setError('ZKPassport verification required. Enter your mock user ID for testing.');
+      return;
+    }
+
+    setLoading(true);
 
     const body: CreateElectionRequest = {
       title,
@@ -36,6 +44,9 @@ export default function CreateElectionForm() {
       candidates,
       voting_start: new Date(votingStart).toISOString(),
       voting_end: new Date(votingEnd).toISOString(),
+      zkpassport_proof: {
+        proof: `mock:${mockUserId.trim()}`,
+      },
     };
 
     try {
@@ -121,6 +132,23 @@ export default function CreateElectionForm() {
             required
           />
         </div>
+      </div>
+
+      <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3">
+        <label className={`${labelClass} text-blue-400`}>
+          ZKPassport Verification (Mock Mode) *
+        </label>
+        <p className="text-xs text-gray-500 mb-2">
+          In production, this would trigger a ZKPassport verification flow.
+          For testing, enter any unique identifier.
+        </p>
+        <input
+          className={inputClass}
+          placeholder="your-unique-id"
+          value={mockUserId}
+          onChange={(e) => setMockUserId(e.target.value)}
+          required
+        />
       </div>
 
       {error && (
