@@ -6,6 +6,7 @@ import {
   validateElectionConfigBlob,
   validateVoteBlob,
 } from '../lib/validation';
+import { verifyCreatorZkpassport, verifyZkpassportProof } from '../lib/zkpassport';
 
 test('parseCreateElectionRequest accepts valid payload', () => {
   const res = parseCreateElectionRequest({
@@ -14,12 +15,16 @@ test('parseCreateElectionRequest accepts valid payload', () => {
     candidates: ['Alice', 'Bob'],
     voting_start: '2026-03-01T00:00:00Z',
     voting_end: '2026-03-02T00:00:00Z',
+    zkpassport_proof: {
+      proof: 'mock:alice',
+    },
   });
 
   assert.equal(res.ok, true);
   if (res.ok) {
     assert.equal(res.data.title, 'Mayor Election');
     assert.deepEqual(res.data.candidates, ['Alice', 'Bob']);
+    assert.deepEqual(res.data.zkpassport_proof, { proof: 'mock:alice' });
   }
 });
 
@@ -29,6 +34,7 @@ test('parseCreateElectionRequest rejects extra fields', () => {
     candidates: ['Alice', 'Bob'],
     voting_start: '2026-03-01T00:00:00Z',
     voting_end: '2026-03-02T00:00:00Z',
+    zkpassport_proof: { proof: 'mock:alice' },
     unexpected: true,
   });
 
@@ -66,6 +72,7 @@ test('validateElectionConfigBlob rejects malformed config blob', () => {
     created_at: 'bad-date',
     voting_start: '2026-03-02T00:00:00Z',
     voting_end: '2026-03-01T00:00:00Z',
+    creator_nullifier: 'abc123',
   };
 
   const res = validateElectionConfigBlob(malformed, 'e1');
@@ -83,4 +90,48 @@ test('validateVoteBlob accepts valid vote blob', () => {
 
   const res = validateVoteBlob(blob, 'e1');
   assert.equal(res.ok, true);
+});
+
+test('verifyCreatorZkpassport derives creator-scoped nullifier in mock mode', async () => {
+  const originalMock = process.env.MOCK_ZKPASSPORT;
+  process.env.MOCK_ZKPASSPORT = 'true';
+
+  const res = await verifyCreatorZkpassport({ proof: 'mock:alice' });
+  assert.equal(res.ok, true);
+  if (res.ok) {
+    // Same user should always get same creator nullifier (different from voting nullifier)
+    const res2 = await verifyCreatorZkpassport({ proof: 'mock:alice' });
+    assert.equal(res2.ok, true);
+    if (res2.ok) {
+      assert.equal(res.scopedNullifier, res2.scopedNullifier);
+    }
+
+    // Verify it's different from voting nullifier (different scope)
+    const voteRes = await verifyZkpassportProof('election-1', { proof: 'mock:alice' });
+    assert.equal(voteRes.ok, true);
+    if (voteRes.ok) {
+      assert.notEqual(res.scopedNullifier, voteRes.scopedNullifier);
+    }
+  }
+
+  process.env.MOCK_ZKPASSPORT = originalMock;
+});
+
+test('verifyCreatorZkpassport requires proof', async () => {
+  const res = await verifyCreatorZkpassport(undefined as any);
+  assert.equal(res.ok, false);
+});
+
+test('parseCreateElectionRequest requires zkpassport_proof', () => {
+  const res = parseCreateElectionRequest({
+    title: 'Mayor Election',
+    candidates: ['Alice', 'Bob'],
+    voting_start: '2026-03-01T00:00:00Z',
+    voting_end: '2026-03-02T00:00:00Z',
+  });
+
+  assert.equal(res.ok, false);
+  if (!res.ok) {
+    assert.ok(res.error.includes('zkpassport_proof'));
+  }
 });

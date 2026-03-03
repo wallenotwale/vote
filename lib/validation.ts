@@ -39,7 +39,7 @@ function isBase64(value: unknown): value is string {
 export function parseCreateElectionRequest(body: unknown): ValidationResult<CreateElectionRequest> {
   if (!isObject(body)) return { ok: false, error: 'Body must be a JSON object' };
 
-  const allowed = ['title', 'description', 'candidates', 'voting_start', 'voting_end', 'creator_pubkey', 'creator_sig'];
+  const allowed = ['title', 'description', 'candidates', 'voting_start', 'voting_end', 'zkpassport_proof'];
   if (!hasOnlyKeys(body, allowed)) {
     return { ok: false, error: 'Body contains unsupported fields' };
   }
@@ -49,8 +49,7 @@ export function parseCreateElectionRequest(body: unknown): ValidationResult<Crea
   const candidates = body.candidates;
   const votingStart = body.voting_start;
   const votingEnd = body.voting_end;
-  const creatorPubkey = body.creator_pubkey;
-  const creatorSig = body.creator_sig;
+  const zkpassportProof = body.zkpassport_proof;
 
   if (!isNonEmptyString(title)) {
     return { ok: false, error: 'title is required and must be a non-empty string' };
@@ -81,16 +80,26 @@ export function parseCreateElectionRequest(body: unknown): ValidationResult<Crea
     return { ok: false, error: 'voting_start must be before voting_end' };
   }
 
-  if (creatorPubkey !== undefined && !isNonEmptyString(creatorPubkey)) {
-    return { ok: false, error: 'creator_pubkey must be a non-empty string when provided' };
+  if (zkpassportProof === undefined) {
+    return { ok: false, error: 'zkpassport_proof is required' };
   }
 
-  if (creatorSig !== undefined && !isBase64(creatorSig)) {
-    return { ok: false, error: 'creator_sig must be a base64 string when provided' };
+  if (!isObject(zkpassportProof)) {
+    return { ok: false, error: 'zkpassport_proof must be an object' };
+  }
+  if (!hasOnlyKeys(zkpassportProof, ['proof', 'vkey_hash', 'version'])) {
+    return { ok: false, error: 'zkpassport_proof contains unsupported fields' };
   }
 
-  if ((creatorPubkey && !creatorSig) || (!creatorPubkey && creatorSig)) {
-    return { ok: false, error: 'creator_pubkey and creator_sig must be provided together' };
+  const { proof, vkey_hash, version } = zkpassportProof;
+  if (proof !== undefined && !isNonEmptyString(proof)) {
+    return { ok: false, error: 'zkpassport_proof.proof must be a non-empty string' };
+  }
+  if (vkey_hash !== undefined && !isNonEmptyString(vkey_hash)) {
+    return { ok: false, error: 'zkpassport_proof.vkey_hash must be a non-empty string' };
+  }
+  if (version !== undefined && !isNonEmptyString(version)) {
+    return { ok: false, error: 'zkpassport_proof.version must be a non-empty string' };
   }
 
   return {
@@ -101,8 +110,7 @@ export function parseCreateElectionRequest(body: unknown): ValidationResult<Crea
       candidates: normalizedCandidates,
       voting_start: votingStart,
       voting_end: votingEnd,
-      ...(typeof creatorPubkey === 'string' ? { creator_pubkey: creatorPubkey } : {}),
-      ...(typeof creatorSig === 'string' ? { creator_sig: creatorSig } : {}),
+      zkpassport_proof: zkpassportProof,
     },
   };
 }
@@ -186,8 +194,7 @@ export function validateElectionConfigBlob(
     voting_start,
     voting_end,
     encryption_pubkey,
-    creator_pubkey,
-    creator_sig,
+    creator_nullifier,
   } = blob;
 
   if (type !== 'election_config') return { ok: false, error: 'Invalid blob type' };
@@ -211,14 +218,8 @@ export function validateElectionConfigBlob(
   if (encryption_pubkey !== undefined && !isNonEmptyString(encryption_pubkey)) {
     return { ok: false, error: 'Invalid encryption_pubkey' };
   }
-  if (creator_pubkey !== undefined && !isNonEmptyString(creator_pubkey)) {
-    return { ok: false, error: 'Invalid creator_pubkey' };
-  }
-  if (creator_sig !== undefined && !isBase64(creator_sig)) {
-    return { ok: false, error: 'Invalid creator_sig' };
-  }
-  if ((creator_pubkey && !creator_sig) || (!creator_pubkey && creator_sig)) {
-    return { ok: false, error: 'creator_pubkey and creator_sig must both be present when used' };
+  if (!isNonEmptyString(creator_nullifier)) {
+    return { ok: false, error: 'creator_nullifier is required' };
   }
 
   return {
@@ -233,9 +234,8 @@ export function validateElectionConfigBlob(
       created_at,
       voting_start,
       voting_end,
+      creator_nullifier,
       ...(encryption_pubkey ? { encryption_pubkey } : {}),
-      ...(creator_pubkey ? { creator_pubkey } : {}),
-      ...(creator_sig ? { creator_sig } : {}),
     },
   };
 }

@@ -19,7 +19,7 @@ Passport NFC scan ──► ZKPassport proof (no PII disclosed)
         Anyone can verify via DA sampling / Celenium
 ```
 
-1. **Create an election** — generates an encryption keypair and posts config to a unique Celestia namespace. Optional `creator_pubkey` + `creator_sig` let anyone verify who authored the election config.
+1. **Create an election** — requires ZKPassport proof to verify you're a unique human. Generates an encryption keypair and posts config to a unique Celestia namespace. The `creator_nullifier` (derived from your ZKPassport proof) is stored on-chain, proving a verified human created the election.
 2. **Vote** — scan your passport, pick a candidate, vote is encrypted client-side and posted as a Celestia blob with your ZK proof + scoped nullifier (prevents double-voting without revealing identity).
 3. **Tally** — admin reveals the decryption key; anyone can verify the count against on-chain blobs.
 4. **Verify** — all vote blobs are publicly available on Celestia; light nodes can independently confirm data availability.
@@ -134,19 +134,19 @@ Three layers of unlinkability:
 
 ## API Overview
 
-### Signed election creation (optional)
+### Election Creation
 
-`POST /api/election` also accepts:
-- `creator_pubkey` (PEM public key)
-- `creator_sig` (base64 signature)
+`POST /api/election` requires:
+- `zkpassport_proof` — ZKPassport proof verifying you're a unique human
 
-The signature is verified server-side against the canonical payload:
-`{ title, description, candidates, voting_start, voting_end }`.
-Invalid signatures are rejected with `400`.
+The server derives a `creator_nullifier` from your proof using a "creator" scope (different from voting scope). This means:
+- Same person = same creator_nullifier across all elections they create
+- Cannot link creator to voter (different scopes)
+- Cannot reverse nullifier to identity
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/api/election` | Create election |
+| `POST` | `/api/election` | Create election (requires ZKPassport) |
 | `GET` | `/api/election/[id]` | Get election details |
 | `POST` | `/api/vote` | Cast a vote |
 | `GET` | `/api/verify/[id]` | Verify vote blobs on-chain |
@@ -163,8 +163,7 @@ Invalid signatures are rejected with `400`.
 This is a **proof of concept** on Celestia's mocha testnet. See [SPEC.md](./SPEC.md) for the full architecture doc and build plan.
 
 ### Working
-- Election creation with Celestia blob posting
-- Optional creator-signed election config verification (`creator_pubkey` + `creator_sig`)
+- Election creation with ZKPassport human verification (creator_nullifier)
 - Vote submission with nullifier uniqueness enforcement
 - ZKPassport request lifecycle (create → poll → proof auto-fill)
 - SQLite-persisted request/proof state
